@@ -3348,6 +3348,67 @@ function showPhrase(q) {
     if (p) $('phrase-input').value = p;
 }
 
+/* 문단에서 핵심표현이 들어 있는 줄만 골라 예문으로 쓴다.
+   영어 줄과 한국어 줄 수가 같으면 같은 위치의 한국어 줄을 짝으로 쓴다.
+   표현이 두 줄 이상에 걸쳐 있으면 그 줄들을 합친다.
+   표현을 못 찾거나 줄 수가 다르면 예전처럼 문단 전체를 쓴다.
+   reason: 'partial'(일부 줄) | 'single'(원래 한 문장) | 'full'(문단 전체에 걸침)
+           | 'nomatch'(표현을 못 찾음) | 'mismatch'(한국어·영어 줄 수가 다름) */
+/* 축약형을 풀어서 비교한다. (they'd ↔ would, don't ↔ do not 등)
+   본문 쪽은 'd를 would·had 둘 다로, 's를 is·has 둘 다로 풀어
+   어느 쪽으로 저장했든 걸리게 한다.
+   저장한 표현 쪽은 애매한 'd·'s는 빼고 나머지만 푼다. */
+function expandContractions(s, isPhrase = false) {
+    return unifyChars(s)
+        .replace(/\bwon't\b/gi, 'will not')
+        .replace(/\bcan't\b/gi, 'can not')
+        .replace(/n't\b/gi, ' not')
+        .replace(/'ll\b/gi, ' will')
+        .replace(/'re\b/gi, ' are')
+        .replace(/'ve\b/gi, ' have')
+        .replace(/'m\b/gi, ' am')
+        .replace(/'d\b/gi, isPhrase ? '' : ' would had')
+        .replace(/'s\b/gi, isPhrase ? '' : ' is has');
+}
+
+function extractExampleFor(q, p) {
+    const enLines = String(q.enDisplay || q.en).split('\n').map(s => s.trim()).filter(Boolean);
+    const koLines = String(q.ko).split('\n').map(s => s.trim()).filter(Boolean);
+    const whole = reason => ({ ko: q.ko, en: q.en, reason });
+
+    if (enLines.length < 2) return whole('single');
+    if (enLines.length !== koLines.length) return whole('mismatch');
+
+    // be, to, a 같은 짧은 단어는 빼고 비교한다 (be supposed to → was supposed to 도 찾도록)
+    let keys = wordsOf(expandContractions(String(p).replace(/~/g, ' '), true));
+    const strong = keys.filter(w => w.length >= 3);
+    if (strong.length) keys = strong;
+    if (!keys.length) return whole('nomatch');
+
+    // 앞부분만 같아도 인정한다 (rush → rushed)
+    const hasAll = text => {
+        const ws = wordsOf(expandContractions(text));
+        return keys.every(k => ws.some(w => w.startsWith(k)));
+    };
+
+    // 표현이 모두 들어 있는 가장 짧은 연속 줄 구간을 찾는다
+    let best = null;
+    for (let s = 0; s < enLines.length; s++) {
+        for (let e = s; e < enLines.length; e++) {
+            if (best && e - s >= best[1] - best[0]) break;
+            if (hasAll(enLines.slice(s, e + 1).join(' '))) { best = [s, e]; break; }
+        }
+    }
+    if (!best) return whole('nomatch');
+    if (best[0] === 0 && best[1] === enLines.length - 1) return whole('full');
+
+    return {
+        ko: koLines.slice(best[0], best[1] + 1).join(' '),
+        en: cleanTarget(enLines.slice(best[0], best[1] + 1).join(' ')),
+        reason: 'partial'
+    };
+}
+
 function savePhraseFor(q, p) {
     let entry = phraseLibrary.find(x => phraseKey(x.phrase) === phraseKey(p));
     if (!entry) {
@@ -3356,20 +3417,34 @@ function savePhraseFor(q, p) {
     } else {
         entry.phrase = p;
     }
-    const added = addExampleToEntry(entry, q.ko, q.en, questionKey(q), false);
+    // 예문은 일부 줄만 쓰더라도, 어느 문제에서 왔는지는 문단 기준으로 기억한다
+    const ex = extractExampleFor(q, p);
+    const added = addExampleToEntry(entry, ex.ko, ex.en, questionKey(q), false);
     persistPhrases();
     renderPhraseLibrary();
     if (added) sessionStats.phrase++;
-    return added;
+    return { added, ex };
+}
+
+function phraseSavedMessage(p, added, ex) {
+    if (!added) return '이미 저장된 표현·예문입니다.';
+    if (ex.reason === 'partial') return `🗝️ "${p}" 저장 · 예문: ${ex.en}`;
+    if (ex.reason === 'nomatch') return `🗝️ "${p}" 저장 · 문단에서 표현을 찾지 못해 문단 전체를 예문으로 넣었습니다. 보관함에서 ✎로 줄일 수 있어요.`;
+    if (ex.reason === 'mismatch') return `🗝️ "${p}" 저장 · 한국어와 영어 줄 수가 달라 문단 전체를 예문으로 넣었습니다. 보관함에서 ✎로 줄일 수 있어요.`;
+    return `🗝️ 핵심표현 "${p}" 저장 완료!`;
 }
 
 function saveCurrentPhrase() {
     const q = activeQuizList[currentIndex];
     const p = $('phrase-input').value.trim();
     if (!p) return alert('저장할 핵심표현을 입력하세요.');
-    const added = savePhraseFor(q, p);
+    const { added, ex } = savePhraseFor(q, p);
     showPhrase(q);
-    alert(added ? '핵심표현을 저장하고 현재 문장을 예문으로 추가했습니다.' : '이미 저장된 표현·예문입니다.');
+    if (added && ex.reason === 'partial') {
+        alert(`핵심표현을 저장하고, 표현이 들어 있는 부분만 예문으로 추가했습니다.\n\n${ex.ko}\n${ex.en}`);
+    } else {
+        alert(phraseSavedMessage(p, added, ex));
+    }
 }
 
 /* 타이핑·클릭·플래시카드 모드에서도 바로 저장 */
@@ -3381,9 +3456,9 @@ function quickSavePhrase() {
     if (p === null) return;
     const trimmed = p.trim();
     if (!trimmed) return;
-    const added = savePhraseFor(q, trimmed);
+    const { added, ex } = savePhraseFor(q, trimmed);
     const msgZone = $('status-msg');
-    msgZone.innerText = added ? `🗝️ 핵심표현 "${trimmed}" 저장 완료!` : '이미 저장된 표현·예문입니다.';
+    msgZone.innerText = phraseSavedMessage(trimmed, added, ex);
     msgZone.style.color = added ? 'var(--success-color)' : 'var(--text-muted)';
 }
 
