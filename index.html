@@ -184,7 +184,7 @@
             background: #e9edf3;
             border-radius: 999px;
             overflow: hidden;
-            margin-bottom: 16px;
+            margin-bottom: 12px;
         }
         .progress-bar > div { height: 100%; background: var(--primary-color); width: 0; transition: width .25s; }
 
@@ -199,7 +199,7 @@
 
         .korean-text {
             font-size: 22px; font-weight: 700; color: #1a202c;
-            margin-bottom: 20px; padding-right: 40px;
+            margin-bottom: 15px; padding-right: 40px;
             white-space: pre-wrap; word-break: keep-all; line-height: 1.55;
             transition: font-size .15s;
         }
@@ -270,7 +270,9 @@
             background: var(--fail-color) !important; color: white !important; border-color: var(--fail-color) !important;
         }
 
-        .status-message { font-size: 14px; font-weight: 600; margin-bottom: 12px; min-height: 20px; }
+        .status-message { font-size: 14px; font-weight: 600; margin-bottom: 12px; }
+        /* 안내문을 지운 뒤 빈 상태 메시지 영역은 공간을 차지하지 않게 한다. */
+        .status-message:empty { display: none; }
 
         .hint-box {
             display: none; background: #fffaf0; border: 1px solid #feebc8; color: #c05621;
@@ -304,11 +306,11 @@
         }
         .free-textarea {
             height: auto; min-height: 110px; max-height: 55vh;
-            margin-bottom: 10px; font-size: 15px; overflow-y: auto; resize: vertical;
+            margin-bottom: 8px; font-size: 15px; overflow-y: auto; resize: vertical;
         }
         .free-textarea.len-lg { font-size: 14px; line-height: 1.7; }
         .free-textarea.len-xl { font-size: 13.5px; line-height: 1.75; }
-        .char-counter { font-size: 12px; color: var(--text-muted); text-align: right; margin: -4px 0 10px; }
+        .char-counter { font-size: 12px; color: var(--text-muted); text-align: right; margin: 0 0 12px; }
 
         .feedback-box {
             border-radius: 10px; padding: 15px; margin-bottom: 14px; border: 1px solid var(--border-color);
@@ -881,7 +883,7 @@
 
         <div class="progress-bar"><div id="progress-bar-fill"></div></div>
 
-        <div style="display:flex;justify-content:flex-end;margin:-7px 0 10px;">
+        <div style="display:flex;justify-content:flex-end;margin:0 0 12px;">
             <button id="inline-edit-toggle" class="btn-ghost btn-mini" onclick="toggleInlineSentenceEditor()">✏️ 현재 문장 수정</button>
         </div>
         <div id="inline-sentence-editor" style="display:none;background:#f8fafc;border:1px solid var(--border-color);border-radius:10px;padding:14px;margin-bottom:15px;">
@@ -933,7 +935,6 @@
 
             <!-- 1단계: 자유작문 -->
             <div id="free-step-write">
-                
                 <textarea id="free-answer" class="free-textarea" placeholder="Write your own sentence or paragraph..." oninput="autoGrow(this); updateCharCount();"></textarea>
                 <div class="char-counter" id="free-char-count">0자 · 0단어</div>
                 <div class="action-row" style="margin-bottom:0;">
