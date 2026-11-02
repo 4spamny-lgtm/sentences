@@ -878,12 +878,13 @@
         </div>
 
         <div id="jump-row" style="display:none; align-items:center; gap:8px; flex-wrap:wrap; margin:-4px 0 14px; padding:10px 12px; background:#f7fafc; border:1px solid var(--border-color); border-radius:8px;">
-            <label for="jump-number" style="font-size:13px; font-weight:600;">🔢 문장 바로 이동</label>
+            <label for="jump-number" style="font-size:13px; font-weight:600;">🔢 문장 번호 이동</label>
             <input id="jump-number" type="number" min="1" step="1" inputmode="numeric" placeholder="번호"
                 onkeydown="if(event.key==='Enter') jumpToQuestion()"
                 style="width:85px; padding:7px 9px; border:1px solid var(--border-color); border-radius:6px; font-size:14px;">
             <span id="jump-total" style="font-size:13px; color:var(--text-muted);"></span>
             <button class="btn-secondary btn-mini" onclick="jumpToQuestion()">이동</button>
+            <span style="font-size:11px; color:var(--text-muted); width:100%;">원본 CSV의 문장 번호 기준 · 랜덤 출제 중에도 이동 가능</span>
         </div>
         <div class="progress-bar"><div id="progress-bar-fill"></div></div>
 
@@ -1361,6 +1362,29 @@ function rememberCsvFilename(fp, name) {
     store.set(CSV_NAMES_KEY, JSON.stringify(names));
 }
 
+/* 과거 CSV에도 별칭을 붙일 수 있다. 문장 데이터 지문을 키로 쓰므로 기록 내용은 변하지 않는다. */
+function renameCsvRecord(fp) {
+    const record = readDataList().find(p => p.fp === fp);
+    if (!record) return alert('해당 CSV 진행 기록을 찾을 수 없습니다.');
+    const oldName = filenameFor(fp) || record.label || '';
+    const name = prompt('이 CSV의 표시할 제목을 입력하세요.\n(원본 CSV 파일명은 바뀌지 않습니다.)', oldName);
+    if (name === null) return;
+    const trimmed = name.trim();
+    if (!trimmed) return alert('제목을 입력해 주세요.');
+    if (trimmed.length > 120) return alert('제목은 120자 이하로 입력해 주세요.');
+    rememberCsvFilename(fp, trimmed);
+    const records = readDataList();
+    records.forEach(r => { if (r.fp === fp) r.label = trimmed; });
+    writeDataList(records);
+    const activeFp = fingerprintOf(listForCheck('data'), 'data');
+    if (activeFp === fp) {
+        currentCsvName = trimmed;
+        const count = parseDataText($('data-input').value).length;
+        $('loaded-info').textContent = `${trimmed} · ${count}개 문장 (제목 변경됨)`;
+    }
+    if (progressSource === 'data' && progressFingerprint === fp) progressLabelText = trimmed;
+    renderResumeBox();
+}
 const PROGRESS_SOURCES = ['data', 'fav', 'phrase'];
 const SOURCE_LABEL = { data: '문장 데이터', fav: '즐겨찾기', phrase: '핵심표현' };
 let pendingProgress = {};       // 목록별로 "이어서 하기"가 가능한 기록
@@ -1580,6 +1604,7 @@ function resumeRowHtml(source, p, ok) {
         </div>
         <div class="resume-actions">
             <button class="btn-primary btn-mini" onclick="resumeStudy('${source}')">▶ 이어서 하기</button>
+            ${source === 'data' ? `<button class="btn-ghost btn-mini" onclick="renameCsvRecord('${p.fp}')">✏️ 제목 변경</button>` : ''}
             <button class="btn-ghost btn-mini" onclick="discardProgress('${source}', '${escapeHtml(p.fp)}')">기록 지우기</button>
         </div>
     </div>`;
@@ -1597,6 +1622,7 @@ function storedRowHtml(p) {
             <div class="resume-bar"><div class="resume-bar-fill" style="width:${pct}%"></div></div>
         </div>
         <div class="resume-actions">
+            <button class="btn-ghost btn-mini" onclick="renameCsvRecord('${p.fp}')">✏️ 제목 변경</button>
             <button class="btn-ghost btn-mini" onclick="discardProgress('data', '${escapeHtml(p.fp)}')">기록 지우기</button>
         </div>
     </div>`;
@@ -2290,7 +2316,7 @@ function enterStudyUI() {
     $('complete-card').style.display = 'none';
     $('study-card').style.display = 'block';
     const jumpRow = $('jump-row');
-    jumpRow.style.display = quizOrder === 'sequential' ? 'flex' : 'none';
+    jumpRow.style.display = 'flex'; // 랜덤에서도 원본 CSV 번호로 이동 가능
     $('jump-total').textContent = `/ 전체 ${activeQuizList.length}문장`;
     $('jump-number').max = String(activeQuizList.length);
 
@@ -2313,7 +2339,7 @@ function loadQuestion() {
     const currentItem = activeQuizList[currentIndex];
 
     $('progress-indicator').innerText = `문제 ${currentIndex + 1} / ${activeQuizList.length}`;
-    $('jump-number').value = String(currentIndex + 1);
+    $('jump-number').value = String((progressSource === 'data' && progressOrder[currentIndex] !== undefined) ? progressOrder[currentIndex] + 1 : currentIndex + 1);
     $('progress-bar-fill').style.width = (currentIndex / activeQuizList.length * 100) + '%';
     $('korean-prompt').innerText = currentItem.ko;
     fitPromptSize(currentItem.ko);
@@ -3503,7 +3529,7 @@ function testVoice() {
 }
 
 function jumpToQuestion() {
-    if (quizOrder !== 'sequential' || !activeQuizList.length) return;
+    if (!activeQuizList.length) return;
     const input = $('jump-number');
     const requested = Number(input.value);
     if (!Number.isInteger(requested) || requested < 1 || requested > activeQuizList.length) {
@@ -3512,7 +3538,11 @@ function jumpToQuestion() {
         input.focus();
         return;
     }
-    currentIndex = requested - 1;
+    // 랜덤 학습에서도 CSV 원본의 N번 문장으로 찾아 이동한다.
+    // 즐겨찾기와 핵심표현에서도 해당 목록의 원래 번호를 기준으로 한다.
+    const pos = progressOrder.indexOf(requested - 1);
+    if (pos < 0) return alert('해당 번호의 문장을 현재 학습 목록에서 찾을 수 없습니다.');
+    currentIndex = pos;
     loadQuestion();
     saveProgress();
 }
