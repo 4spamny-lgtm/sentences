@@ -933,7 +933,7 @@
 
             <!-- 1단계: 자유작문 -->
             <div id="free-step-write">
-                <label class="label-small">정답을 맞히려 하지 말고, 먼저 내 문장으로 표현해 보세요.</label>
+                
                 <textarea id="free-answer" class="free-textarea" placeholder="Write your own sentence or paragraph..." oninput="autoGrow(this); updateCharCount();"></textarea>
                 <div class="char-counter" id="free-char-count">0자 · 0단어</div>
                 <div class="action-row" style="margin-bottom:0;">
@@ -2371,7 +2371,7 @@ function loadQuestion() {
     $('next-btn').style.display = 'none';
 
     const msgZone = $('status-msg');
-    msgZone.innerText = '상단 오디오 소리를 듣거나 타이핑을 시작하세요.';
+    msgZone.innerText = '';
     msgZone.style.color = 'var(--text-muted)';
 
     backfillFavorite(currentItem);
@@ -2535,12 +2535,12 @@ function syncModeUI() {
     } else if (currentMode === 'flash') {
         koreanPrompt.style.display = 'none';
         flashZone.style.display = 'block';
-        msgZone.innerText = '👆 카드를 클릭해서 정답을 확인해보세요.';
+        msgZone.innerText = '';
         msgZone.style.color = 'var(--text-muted)';
     } else if (currentMode === 'free') {
         freeZone.style.display = 'block';
         commonRow.style.display = 'none';   // 자유작문은 자체 버튼 사용 (힌트로 정답 노출 방지)
-        msgZone.innerText = '한글만 보고 내 문장을 먼저 만들어 보세요.';
+        msgZone.innerText = '';
         msgZone.style.color = 'var(--text-muted)';
     }
 }
@@ -2646,7 +2646,7 @@ function toggleFlashFlip() {
         showMissionBox();
         $('next-btn').style.display = 'inline-flex';
     } else {
-        msgZone.innerText = '👆 카드를 클릭해서 정답을 확인해보세요.';
+        msgZone.innerText = '';
         msgZone.style.color = 'var(--text-muted)';
         hideMissionBox();
     }
@@ -2724,7 +2724,7 @@ function evaluateFree() {
             <div class="score"><b>${wordsOf(a).length}</b><span>내 문장 단어수</span></div>
             <div class="score"><b>${missing.length}</b><span>안 쓴 원문 단어</span></div>
          </div>
-         <p>이 점수는 단어·문자열 유사도일 뿐입니다. 의미가 통하고 자연스럽다면 원문과 달라도 좋은 문장입니다. 정확한 평가가 필요하면 아래에서 핵심표현을 저장한 뒤 ChatGPT 프롬프트로 확인하세요.</p>`;
+         `;
 
     $('mine-text').innerHTML = diffHtml(a, q.en, 'w-extra');
     $('ref-text').innerHTML = (showFurigana && q.furigana && q.furigana.trim())
